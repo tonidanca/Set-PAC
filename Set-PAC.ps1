@@ -46,16 +46,19 @@ function Convert-BitMaskToNetMask ($BitMask) {
 [int]$BitMask = $net.Split("/")[1]
 [System.Net.IPAddress]$SubnetMask = Convert-BitMaskToNetMask -BitMask $BitMask
 
-$index = (
-    Get-NetIPInterface -ConnectionState Connected -AddressFamily IPv4 | Where-Object {
-        $_.InterfaceAlias -notlike "*Loopback*" -and $_.InterfaceAlias -notlike "*vpn*"
+$netIF = (Get-NetIPInterface -ConnectionState Connected -AddressFamily IPv4 | Where-Object {
+        $_.InterfaceAlias -like "Ethernet*" -or $_.InterfaceAlias -like "Wi-Fi*"
     }
-).ifIndex
-# Verify that the IP and set the proxy
-if ($null -eq $index) {
+)
+
+if ($netIF.count -eq 0) {
     $msgTxt = "No active connection. No action can be executed."
 }
+# Verify that the IP and set the proxy
 else {
+    if ($netIF.count -eq 1) { $index = $netIF.ifIndex }
+    else { $index = ($netIF | Where-Object { $_.InterfaceAlias -like "Ethernet*" }).ifIndex }
+
     [System.Net.IPAddress]$CurrentIP = (Get-NetIPAddress -AddressFamily IPv4 -ifIndex $index).IPAddress
     switch ($CurrentIP.count) {
         0 { $msgTxt = "No active connection. No action can be executed." }
@@ -105,4 +108,4 @@ else {
 
 $wshell = New-Object -ComObject Wscript.Shell
 $wshell.Popup("$msgTxt", 0, $MyInvocation.MyCommand.Name, 0x1)
-$msgTxt
+$msgTxt 
