@@ -63,9 +63,9 @@ else {
             $regKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings"
             $pacActual = (Get-ItemProperty -path $regKey).AutoConfigURL
             $msgTxt = "Current IP: $CurrentIP`n"
-            $msgTxt += "Proxt Automatic Configuration Script"
+            $msgTxt += "Proxt Automatic Configuration Script (PAC)"
             if ($null -eq $CurrentIP -or !($Subnet.Address -eq ($CurrentIP.Address -band $SubnetMask.Address))) {
-                $msgTxt += " is not required for the $Net Network"
+                $msgTxt += " is not required for the network $Net"
                 if ($pacActual) {
                     Set-ItemProperty -path $regKey AutoConfigURL -Value "" -ErrorAction Stop
                     $msgTxt += ", but $pacActual was set up.`nIt has now been disabled."
@@ -75,7 +75,7 @@ else {
                 }
             }
             else {
-                $msgTxt += " is required for the $Net Network"
+                $msgTxt += " is required for the network $Net"
                 if ($pacActual -ne $PAC) {
                     Set-ItemProperty -path $regKey AutoConfigURL -Value $PAC
                     $msgTxt += ", but was not set.`nNow the value $PAC has been set."
