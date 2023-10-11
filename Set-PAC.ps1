@@ -46,64 +46,58 @@ function Convert-BitMaskToNetMask ($BitMask) {
 [int]$BitMask = $net.Split("/")[1]
 [System.Net.IPAddress]$SubnetMask = Convert-BitMaskToNetMask -BitMask $BitMask
 
-$netIF = (Get-NetIPInterface -ConnectionState Connected -AddressFamily IPv4 | Where-Object {
-        $_.InterfaceAlias -like "Ethernet*" -or $_.InterfaceAlias -like "Wi-Fi*"
-    }
-)
+$netIF = Get-NetIPInterface -ConnectionState Connected -AddressFamily IPv4 | Where-Object {
+    $_.InterfaceAlias -like "Ethernet*" -or $_.InterfaceAlias -like "Wi-Fi*" }
 
-if ($netIF.count -eq 0) {
-    $msgTxt = "No active connection. No action can be executed."
+switch ($netIF.count) {
+    0 { $msgTxt = "No active connection. No action can be executed." }
+    1 { $index = $netIF.ifIndex }
+    Default { $index = ($netIF | Where-Object { $_.InterfaceAlias -like "Ethernet*" }).ifIndex }
 }
-# Verify that the IP and set the proxy
-else {
-    if ($netIF.count -eq 1) { $index = $netIF.ifIndex }
-    else { $index = ($netIF | Where-Object { $_.InterfaceAlias -like "Ethernet*" }).ifIndex }
 
+if ($index.count -eq 1) {
     [System.Net.IPAddress]$CurrentIP = (Get-NetIPAddress -AddressFamily IPv4 -ifIndex $index).IPAddress
-    switch ($CurrentIP.count) {
-        0 { $msgTxt = "No active connection. No action can be executed." }
-        1 {
-            $regKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings"
-            $pacActual = (Get-ItemProperty -path $regKey).AutoConfigURL
-            $msgTxt = "Current IP: $CurrentIP`n"
-            $msgTxt += "Proxt Automatic Configuration Script (PAC)"
-            if ($null -eq $CurrentIP -or !($Subnet.Address -eq ($CurrentIP.Address -band $SubnetMask.Address))) {
-                $msgTxt += " is not required for the network $Net"
-                if ($pacActual) {
-                    Set-ItemProperty -path $regKey AutoConfigURL -Value "" -ErrorAction Stop
-                    $msgTxt += ", but $pacActual was set up.`nIt has now been disabled."
+    $regKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings"
+    $pacActual = (Get-ItemProperty -path $regKey).AutoConfigURL
+    $msgTxt = "Current IP: $CurrentIP`n"
+    $msgTxt += "Proxt Automatic Configuration Script (PAC)"
+    if ($null -eq $CurrentIP -or !($Subnet.Address -eq ($CurrentIP.Address -band $SubnetMask.Address))) {
+        $msgTxt += " is not required for the network $Net"
+        if ($pacActual) {
+            Set-ItemProperty -path $regKey AutoConfigURL -Value "" -ErrorAction Stop
+            $msgTxt += ", but $pacActual was set up.`nIt has now been disabled."
+        }
+        else {
+            $msgTxt += " and was not set.`nNo action required."
+        }
+    }
+    else {
+        $msgTxt += " is required for the network $Net"
+        if ($pacActual -ne $PAC) {
+            Set-ItemProperty -path $regKey AutoConfigURL -Value $PAC
+            $msgTxt += ", but was not set.`nNow the value $PAC has been set."
+        }
+        else {
+            $msgTxt += " and the correct value was already set.`nNo action required."
+        }
+        if ($processToStop) {
+            try {
+                if (Get-Process -Name $processToStop -ErrorAction SilentlyContinue) {
+                    Stop-Process -ProcessName $processToStop
+                    $msgTxt += "`n`nStopped process " + $processToStop
                 }
                 else {
-                    $msgTxt += " and was not set.`nNo action required."
+                    $msgTxt += "`n`nProcess " + $processToStop + " is not running."
                 }
             }
-            else {
-                $msgTxt += " is required for the network $Net"
-                if ($pacActual -ne $PAC) {
-                    Set-ItemProperty -path $regKey AutoConfigURL -Value $PAC
-                    $msgTxt += ", but was not set.`nNow the value $PAC has been set."
-                }
-                else {
-                    $msgTxt += " and the correct value was already set.`nNo action required."
-                }
-                if ($processToStop) {
-                    try {
-                        if (Get-Process -Name $processToStop -ErrorAction SilentlyContinue) {
-                            Stop-Process -ProcessName $processToStop
-                            $msgTxt += "`n`nStopped process " + $processToStop
-                        }
-                        else {
-                            $msgTxt += "`n`nProcess " + $processToStop + " is not running."
-                        }
-                    }
-                    catch {
-                        $msgTxt += "`n`nImpossible to stop the $processToStop process."
-                    }
-                }
+            catch {
+                $msgTxt += "`n`nImpossible to stop the $processToStop process."
             }
         }
-        Default { $msgTxt = "More than one active connection. Test the connection manually." }
     }
+}
+else {
+    $msgTxt = "More than one active connection. Test the connection manually."
 }
 
 $wshell = New-Object -ComObject Wscript.Shell
