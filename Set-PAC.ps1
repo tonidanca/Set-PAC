@@ -14,6 +14,8 @@
    is the network in which to set the PAC file (e.g. "192.168.0.0/22")
 .PARAMETER Process
   is the name of the process to stop when setting the proxy
+.PARAMETER Silent
+  if this parameter is set, the script doesn't open the popup
 #>
 param (
     [parameter(Mandatory = $true)]
@@ -22,7 +24,10 @@ param (
     [parameter(Mandatory = $true)]
     [string]$Net,
 
-    [string]$processToStop
+    [string]$processToStop,
+
+    [parameter(Mandatory = $false)]
+    [switch]$Silent
 )
 function Convert-BitMaskToNetMask ($BitMask) {
     $NetMask = ""
@@ -100,6 +105,8 @@ else {
     $msgTxt = "More than one active connection. Test the connection manually."
 }
 
-$wshell = New-Object -ComObject Wscript.Shell
-$wshell.Popup("$msgTxt", 0, $MyInvocation.MyCommand.Name, 0x1)
-$msgTxt 
+if (!$Silent.IsPresent) {
+    $wshell = New-Object -ComObject Wscript.Shell
+    $wshell.Popup("$msgTxt", 15, $MyInvocation.MyCommand.Name, 0x40)
+    $msgTxt
+}
